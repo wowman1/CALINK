@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      //"@/components/*": ["./components/*", "./src/components/*"],
+      // ↑ 1순위: 루트/components 확인 -> 없으면 2순위: src/components 확인
+
+      //"@/lib/*": ["./lib/*", "./src/lib/*"],
+      // ↑ 1순위: 루트/lib 확인 -> 없으면 2순위: src/lib 확인
+
+      "@/*": ["./src/*"]
+      // ↑ 그 외 모든 것은 src에서 찾음
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
