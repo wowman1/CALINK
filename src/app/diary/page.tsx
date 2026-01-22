@@ -155,7 +155,11 @@ export default function DiaryDetailPage() {
         { event: "*", schema: "public", table: "todos" },
         (payload) => {
           if (payload.eventType === "INSERT")
-            setDbTodos((prev) => [...prev, payload.new]);
+            setDbTodos((prev) => {
+              const isExist = prev.some((todo) => todo.id === payload.new.id);
+              if (isExist) return prev;
+              return [...prev, payload.new];
+            });
           if (payload.eventType === "UPDATE")
             setDbTodos((prev) =>
               prev.map((t) => (t.id === payload.new.id ? payload.new : t)),
@@ -333,7 +337,10 @@ export default function DiaryDetailPage() {
         type: "alert", // 👈 버튼을 하나로 만듭니다.
       });
     } else {
-      setDbLogs((prev) => [...prev, data]);
+      setDbLogs((prev) => {
+        if (prev.some((log) => log.id === data.id)) return prev; // 여기서도 한 번 더 체크
+        return [...prev, data];
+      });
       setInputText("");
       setTargetLogId(null);
     }
@@ -348,8 +355,8 @@ export default function DiaryDetailPage() {
       confirmText: "네, 삭제할게요",
       // ⭐ 모달의 확인 버튼을 누르면 아래 함수가 실행됩니다.
       action: () => performDelete(logId),
-      cancelText: "",
-      type: "alert", // 👈 버튼을 하나로 만듭니다.
+      cancelText: "취소",
+      type: "confirm", // 👈 버튼을 하나로 만듭니다.
     });
   };
 
