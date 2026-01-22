@@ -185,7 +185,7 @@ export default function BoardPage() {
           confirmText: "확인",
           action: null,
           type: "alert",
-          cancelText: "",
+          cancelText: "다음에 할래요",
         });
       }
     } else {
@@ -242,7 +242,7 @@ export default function BoardPage() {
           confirmText: "확인",
           action: null,
           type: "alert",
-          cancelText: "",
+          cancelText: "다음에 할래요",
         });
         return;
       }
@@ -268,7 +268,7 @@ export default function BoardPage() {
         confirmText: "닫기",
         action: null,
         type: "alert",
-        cancelText: "",
+        cancelText: "다음에 할래요",
       });
     } else {
       // 삭제 성공 시: 목록 새로고침 및 모달 닫기
@@ -287,7 +287,7 @@ export default function BoardPage() {
       confirmText: "삭제하기",
       action: () => performPostDelete(postId), // 확인 버튼 클릭 시 실제 삭제 함수 호출
       type: "confirm",
-      cancelText: "",
+      cancelText: "다음에 할래요",
     });
   };
 

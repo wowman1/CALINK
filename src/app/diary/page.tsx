@@ -307,42 +307,22 @@ export default function DiaryDetailPage() {
       linkedDate = potentialDate;
     }
 
-    const tempId = crypto.randomUUID(); // 임시 ID
-    const newLog = {
-      id: tempId,
-      content: inputText,
-      date_key: selectedDate,
-      created_at: new Date().toISOString(),
-      is_temp: true, // 임시 데이터임을 표시
-    };
+    // 4. DB Insert
+    const { data, error } = await supabase
+      .from("diary_logs")
+      .insert([
+        {
+          date_key: selectedDate,
+          content: inputText,
+          linked_date: linkedDate,
+          user_id: user.id,
+        },
+      ])
+      .select()
+      .single();
 
-    // 1. [낙관적 업데이트] DB 응답 기다리지 않고 상태에 먼저 추가 (즉시 렌더링)
-    setDbLogs((prev) => [...prev, newLog]);
-    setInputText(""); // 입력창 즉시 비우기
-
-    try {
-      const { data, error } = await supabase
-        .from("diary_logs")
-        .insert([
-          {
-            content: newLog.content,
-            date_key: newLog.date_key,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // 2. 실제 데이터가 오면 임시 데이터를 실제 데이터로 교체
-      setDbLogs((prev) => prev.map((log) => (log.id === tempId ? data : log)));
-
-      setInputText("");
-      setTargetLogId(null);
-    } catch (error) {
-      console.error("전송 실패:", error);
-      // 실패 시 임시 데이터 삭제 및 롤백
-      setDbLogs((prev) => prev.filter((log) => log.id !== tempId));
+    if (error) {
+      console.error(error);
       setAlertConfig({
         isOpen: true,
         title: "Error! 😵",
@@ -352,6 +332,10 @@ export default function DiaryDetailPage() {
         cancelText: "",
         type: "alert", // 👈 버튼을 하나로 만듭니다.
       });
+    } else {
+      setDbLogs((prev) => [...prev, data]);
+      setInputText("");
+      setTargetLogId(null);
     }
   };
 
