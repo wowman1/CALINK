@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, memo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   Clock,
@@ -55,19 +55,10 @@ export default function DiaryChatModal({
   // 2. 이전 로그 개수를 추적하기 위한 Ref
   const prevLogsLength = useRef(dayLogs.length);
 
-  // 스크롤 로직 최적화: requestAnimationFrame을 사용하여 렌더링 직후 부드럽게 이동
   useEffect(() => {
-    if (dayLogs.length > prevLogsLength.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: "smooth",
-        });
-      });
-    }
-    prevLogsLength.current = dayLogs.length;
-  }, [dayLogs.length]);
-
+    if (scrollRef.current)
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [dayLogs]);
   useEffect(() => {
     // A. 하이라이트 아이디가 새로 들어온 경우 (최우선순위)
     if (highlightLogId) {
@@ -192,14 +183,24 @@ export default function DiaryChatModal({
             className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FFFDFB] custom-scrollbar"
           >
             {dayLogs.map((log) => (
-              <LogItem
+              <div
                 key={log.id}
-                log={log}
-                onDelete={onDelete}
-                onUpdate={onUpdate}
-                onDateLinkClick={onDateLinkClick}
-                isHighlighted={highlightLogId === log.id}
-              />
+                id={`log-${log.id}`} // ⭐ 각 로그 아이템에 ID를 부여해야 찾을 수 있습니다.
+                className={cn(
+                  "transition-all duration-700 p-2 rounded-2xl",
+                  highlightLogId === log.id
+                    ? "bg-yellow-100 ring-2 ring-yellow-400"
+                    : "",
+                  // highlightLogId가 null이 되면 위 조건은 false가 되어 스타일이 제거됨
+                )}
+              >
+                <LogItem
+                  log={log}
+                  onDelete={onDelete}
+                  onUpdate={onUpdate}
+                  onDateLinkClick={onDateLinkClick}
+                />
+              </div>
             ))}
           </div>
 
@@ -231,13 +232,7 @@ export default function DiaryChatModal({
 }
 
 // --- 내부 로그 아이템 컴포넌트 ---
-const LogItem = memo(function LogItem({
-  log,
-  onDelete,
-  onUpdate,
-  onDateLinkClick,
-  isHighlighted,
-}: any) {
+function LogItem({ log, onDelete, onUpdate, onDateLinkClick }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(log.content);
 
@@ -270,76 +265,68 @@ const LogItem = memo(function LogItem({
   };
 
   return (
-    <div
-      id={`log-${log.id}`}
-      className={cn(
-        "transition-all duration-500 p-2 rounded-2xl",
-        isHighlighted ? "bg-yellow-100 ring-2 ring-yellow-400" : "",
-      )}
-    >
-      <div className="group space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
-        <div className="flex justify-between items-center px-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400">
-            <Clock className="w-3 h-3" />
-            {new Date(log.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+    <div className="group space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
+      <div className="flex justify-between items-center px-1">
+        <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400">
+          <Clock className="w-3 h-3" />
+          {new Date(log.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+
+        {/* 수정/삭제 버튼 (Hover 시 노출) */}
+        {!isEditing && (
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-slate-400 hover:text-blue-500"
+            >
+              <Edit3 size={14} />
+            </button>
+            <button
+              onClick={() => onDelete(log.id)}
+              className="text-slate-400 hover:text-rose-500"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
+        )}
+      </div>
 
-          {/* 수정/삭제 버튼 (Hover 시 노출) */}
-          {!isEditing && (
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div
+        className={cn(
+          "bg-white border-2 border-black p-4 rounded-2xl rounded-tl-none font-bold text-sm shadow-cartoon-sm max-w-[95%] transition-all",
+          isEditing && "border-blue-500 ring-4 ring-blue-500/10",
+        )}
+      >
+        {isEditing ? (
+          <div className="space-y-2">
+            <textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="w-full bg-slate-50 border-2 border-black rounded-lg p-2 text-xs font-bold focus:outline-none"
+              rows={2}
+            />
+            <div className="flex justify-end gap-2">
               <button
-                onClick={() => setIsEditing(true)}
-                className="text-slate-400 hover:text-blue-500"
+                onClick={() => setIsEditing(false)}
+                className="p-1 text-slate-400 hover:text-black"
               >
-                <Edit3 size={14} />
+                <RotateCcw size={16} />
               </button>
               <button
-                onClick={() => onDelete(log.id)}
-                className="text-slate-400 hover:text-rose-500"
+                onClick={handleUpdateSubmit}
+                className="p-1 text-blue-500 hover:scale-110"
               >
-                <Trash2 size={14} />
+                <Check size={18} strokeWidth={3} />
               </button>
             </div>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            "bg-white border-2 border-black p-4 rounded-2xl rounded-tl-none font-bold text-sm shadow-cartoon-sm max-w-[95%] transition-all",
-            isEditing && "border-blue-500 ring-4 ring-blue-500/10",
-          )}
-        >
-          {isEditing ? (
-            <div className="space-y-2">
-              <textarea
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-black rounded-lg p-2 text-xs font-bold focus:outline-none"
-                rows={2}
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="p-1 text-slate-400 hover:text-black"
-                >
-                  <RotateCcw size={16} />
-                </button>
-                <button
-                  onClick={handleUpdateSubmit}
-                  className="p-1 text-blue-500 hover:scale-110"
-                >
-                  <Check size={18} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p>{renderContent(log.content)}</p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <p>{renderContent(log.content)}</p>
+        )}
       </div>
     </div>
   );
-});
+}

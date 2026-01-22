@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronUp,
@@ -64,8 +58,6 @@ export default function DiaryDetailPage() {
   // 2. 상세 모달을 위한 상태
   const [linkDetailDate, setLinkDetailDate] = useState<string | null>(null);
   const [targetLogId, setTargetLogId] = useState<string | null>(null);
-  const [isLinksExpanded, setIsLinksExpanded] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [alertConfig, setAlertConfig] = useState({
     isOpen: false,
@@ -77,72 +69,28 @@ export default function DiaryDetailPage() {
     action: null as (() => void) | null, // ⭐ 추가: 확인 버튼 클릭 시 실행할 함수를 담는 곳
   });
 
+  const [isLinksExpanded, setIsLinksExpanded] = useState(false);
   const DISPLAY_LIMIT = 5; // 처음에 보여줄 링크 개수
 
-  // --- [해결책 2] 데이터 구조 최적화 (O(1) 접근을 위한 Map 생성) ---
-  const logsByDate = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    dbLogs.forEach((log) => {
-      if (!map[log.date_key]) map[log.date_key] = [];
-      map[log.date_key].push(log);
-    });
-    return map;
-  }, [dbLogs]);
-
-  const todosByDate = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    dbTodos.forEach((todo) => {
-      if (!map[todo.date_key]) map[todo.date_key] = [];
-      map[todo.date_key].push(todo);
-    });
-    return map;
-  }, [dbTodos]);
-
-  // --- [해결책 3] 범위 기반 데이터 페칭 ---
-  const fetchMonthData = useCallback(async (targetDate: Date) => {
-    setIsLoading(true);
-    const start = format(startOfMonth(subMonths(targetDate, 1)), "yyyy-MM-dd");
-    const end = format(endOfMonth(addMonths(targetDate, 1)), "yyyy-MM-dd");
-
-    try {
-      // Promise.all로 병렬 요청 (속도 2배)
-      const [{ data: logs }, { data: todos }] = await Promise.all([
-        supabase
-          .from("diary_logs")
-          .select("*")
-          .gte("date_key", start)
-          .lte("date_key", end),
-        supabase
-          .from("todos")
-          .select("*")
-          .gte("date_key", start)
-          .lte("date_key", end),
-      ]);
-
+  // --- 1. 실시간 데이터 구독 (Logs & Todos) ---
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const { data: logs } = await supabase.from("diary_logs").select("*");
+      const { data: todos } = await supabase.from("todos").select("*");
       setDbLogs(logs || []);
       setDbTodos(todos || []);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    };
 
-  // 월이 바뀔 때마다 해당 월 데이터만 가져옴
-  useEffect(() => {
-    fetchMonthData(currentMonth);
-  }, [currentMonth, fetchMonthData]);
+    fetchInitialData();
 
-  // --- 실시간 구독 ---
-  useEffect(() => {
     const channel = supabase
-      .channel("db-changes")
+      .channel("schema-db-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "diary_logs" },
         (payload) => {
           if (payload.eventType === "INSERT")
             setDbLogs((prev) => [...prev, payload.new]);
-          if (payload.eventType === "DELETE")
-            setDbLogs((prev) => prev.filter((l) => l.id !== payload.old.id));
         },
       )
       .on(
@@ -155,8 +103,6 @@ export default function DiaryDetailPage() {
             setDbTodos((prev) =>
               prev.map((t) => (t.id === payload.new.id ? payload.new : t)),
             );
-          if (payload.eventType === "DELETE")
-            setDbTodos((prev) => prev.filter((t) => t.id !== payload.old.id));
         },
       )
       .subscribe();
@@ -228,8 +174,12 @@ export default function DiaryDetailPage() {
       return;
     }
 
+    // 해당 월로 캘린더 이동 (필요 시)
+    //setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+
     // 챗모달 열기
     setSelectedDate(targetDate);
+    //setTargetLogId(null); // 링크 클릭 이동 시에는 하이라이트 초기화 (혹은 특정 로직)
   };
 
   // --- 모달을 닫는 통합 핸들러 ---
@@ -414,6 +364,13 @@ export default function DiaryDetailPage() {
     }
   };
 
+  // --- 3. UI 헬퍼 함수 ---
+  const getLinkedLogsForTop = () => dbLogs.filter((log) => log.linked_date);
+  const getDayLogs = (date: string) =>
+    dbLogs.filter((log) => log.date_key === date);
+  const getDayTodos = (date: string) =>
+    dbTodos.filter((todo) => todo.date_key === date);
+
   // --- 검색 로직 ---
   // 검색어가 포함된 로그를 가진 날짜들을 추출합니다. (현재 월 한정)
   const searchedDateKeys = useMemo(() => {
@@ -456,13 +413,6 @@ export default function DiaryDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFBF5] p-4 md:p-8 font-sans text-black pt-24">
-      {/* 로딩 인디케이터 */}
-      {isLoading && (
-        <div className="fixed top-24 right-8 z-50 flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full animate-bounce">
-          <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-          <span className="text-xs font-black">SYNCING...</span>
-        </div>
-      )}
       {/* 1. 상단: 링크 및 검색 영역 */}
       <section className="max-w-7xl mx-auto mb-8 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
@@ -599,18 +549,22 @@ export default function DiaryDetailPage() {
             </div>
           ))}
 
-          {calendarDays.map((date) => {
+          {calendarDays.map((date, i) => {
             const dateKey = format(date, "yyyy-MM-dd");
             const isCurrentMonth = isSameMonth(date, currentMonth);
             const isToday = isSameDay(date, new Date());
-
-            // [최적화 핵심] 반복문(some, filter) 대신 Map에서 즉시 가져오기
-            const dayLogs = logsByDate[dateKey] || [];
-            const dayTodos = todosByDate[dateKey] || [];
-            const hasLog = dayLogs.length > 0;
-            const hasLink = dayLogs.some((l) => l.linked_date);
+            // ⭐ 여기서 변수를 정의합니다!
+            // 검색어가 있고, 현재 날짜가 검색 결과 목록에 들어있는지 확인
             const isSearchResult =
               searchQuery.trim() !== "" && searchedDateKeys.includes(dateKey);
+
+            const hasLink = dbLogs.some(
+              (log) => log.date_key === dateKey && log.linked_date,
+            );
+
+            const hasLog = dbLogs.some((log) => log.date_key === dateKey);
+
+            const dayTodos = dbTodos.filter((t) => t.date_key === dateKey);
 
             return (
               <div
